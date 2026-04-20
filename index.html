@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sparkie — Skyward Sanctuary</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #0a1530; font-family: 'Georgia', serif; }
+    canvas { display: block; }
+    #hint { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); color: rgba(150,200,255,0.4); font-size: 12px; letter-spacing: 0.08em; pointer-events: none; opacity: 1; transition: opacity 2s ease; }
+    #title { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); color: rgba(120,180,220,0.4); font-size: 10px; letter-spacing: 0.3em; text-transform: uppercase; }
+  </style>
+</head>
+<body>
+<div id="title">🏔️ SKYWARD SANCTUARY ☁️</div>
+<div id="hint">drag to orbit</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0a1530);
+
+const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 1000);
+camera.position.set(0, 20, 60);
+
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.05;
+controls.autoRotate = true;
+controls.autoRotateSpeed = 0.06;
+controls.maxPolarAngle = Math.PI * 0.65;
+controls.minDistance = 10;
+controls.maxDistance = 120;
+
+scene.add(new THREE.AmbientLight(0x102040, 0.4));
+
+const grassMat = new THREE.MeshStandardMaterial({ color: 0x2a5a15, roughness: 0.9 });
+const stoneMat = new THREE.MeshStandardMaterial({ color: 0x4a4540, roughness: 0.9 });
+const cloudMat = new THREE.MeshStandardMaterial({ color: 0xd8e8ff, transparent: true, opacity: 0.7 });
+
+// Main floating island
+const mainIsland = new THREE.Mesh(
+  new THREE.CylinderGeometry(15, 12, 8, 20),
+  new THREE.ShaderMaterial({
+    uniforms: {},
+    vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: `
+      varying vec2 vUv;
+      float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5); }
+      void main() {
+        float n = hash(floor(vUv * 20.0)) * 0.08;
+        vec3 top = vec3(0.15, 0.3, 0.1) + n;
+        vec3 side = vec3(0.2, 0.15, 0.1) + n * 0.5;
+        vec3 col = mix(top, side, vUv.y);
+        gl_FragColor = vec4(col, 1.0);
+      }
+    `
+  })
+);
+mainIsland.position.set(0, 0, 0);
+scene.add(mainIsland);
+
+// Hanging roots from main island
+for (let r = 0; r < 30; r++) {
+  const angle = Math.random() * Math.PI * 2;
+  const rDist = 3 + Math.random() * 10;
+  const root = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.03, 0.06, 5 + Math.random() * 8, 6),
+    new THREE.MeshStandardMaterial({ color: 0x3a2510 })
+  );
+  root.position.set(
+    Math.cos(angle) * rDist,
+    -4 - Math.random() * 4,
+    Math.sin(angle) * rDist
+  );
+  scene.add(root);
+}
+
+// Trees on main island
+for (let t = 0; t < 10; t++) {
+  const angle = Math.random() * Math.PI * 2;
+  const tDist = 3 + Math.random() * 9;
+  const tx = Math.cos(angle) * tDist;
+  const tz = Math.sin(angle) * tDist;
+  
+  const trunk = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.2, 0.4, 6 + Math.random() * 4, 10),
+    new THREE.MeshStandardMaterial({ color: 0x3a2010 })
+  );
+  trunk.position.set(tx, 4 + Math.random() * 2, tz);
+  trunk.rotation.z = (Math.random() - 0.5) * 0.15;
+  scene.add(trunk);
+  
+  for (let c = 0; c < 4; c++) {
+    const canopy = new THREE.Mesh(
+      new THREE.SphereGeometry(2 + Math.random() * 2, 10, 10),
+      grassMat
+    );
+    canopy.position.set(
+      tx + (Math.random() - 0.5) * 2,
+      7 + Math.random() * 3,
+      tz + (Math.random() - 0.5) * 2
+    );
+    scene.add(canopy);
+  }
+}
+
+// Waterfall from main island
+const waterfallLight = new THREE.PointLight(0x88ddff, 5, 25);
+waterfallLight.position.set(8, 2, 0);
+scene.add(waterfallLight);
+
+for (let w = 0; w < 40; w++) {
+  const drop = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.1, 0.15, 2 + Math.random() * 2, 6),
+    new THREE.MeshStandardMaterial({ color: 0x88ccff, transparent: true, opacity: 0.6 })
+  );
+  drop.position.set(
+    10 + Math.random() * 3,
+    -5 - w * 1.5,
+    (Math.random() - 0.5) * 2
+  );
+  scene.add(drop);
+}
+
+// Secondary floating islands
+for (let i = 0; i < 8; i++) {
+  const angle = (i / 8) * Math.PI * 2 + 0.3;
+  const dist = 35 + Math.random() * 15;
+  const ix = Math.cos(angle) * dist;
+  const iz = Math.sin(angle) * dist;
+  const iy = -5 + Math.random() * 10;
+  const size = 3 + Math.random() * 5;
+  
+  const island = new THREE.Mesh(
+    new THREE.CylinderGeometry(size, size * 0.8, 4 + Math.random() * 4, 16),
+    new THREE.ShaderMaterial({
+      uniforms: { uPhase: { value: i } },
+      vertexShader: `varying vec2 vUv; uniform float uPhase; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+      fragmentShader: `
+        varying vec2 vUv;
+        uniform float uPhase;
+        void main() {
+          vec3 top = vec3(0.12, 0.28, 0.1);
+          vec3 side = vec3(0.18, 0.12, 0.08);
+          vec3 col = mix(top, side, vUv.y);
+          gl_FragColor = vec4(col, 1.0);
+        }
+      `
+    })
+  );
+  island.position.set(ix, iy, iz);
+  island.userData.floatPhase = i;
+  island.userData.baseY = iy;
+  island.userData.isIsland = true;
+  scene.add(island);
+  
+  // Tiny tree on each island
+  if (Math.random() > 0.3) {
+    const tree = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.1, 0.2, 3, 8),
+      new THREE.MeshStandardMaterial({ color: 0x3a2010 })
+    );
+    tree.position.set(ix, iy + 3, iz);
+    scene.add(tree);
+    
+    const leaves = new THREE.Mesh(
+      new THREE.SphereGeometry(1.2, 8, 8),
+      grassMat
+    );
+    leaves.position.set(ix, iy + 5, iz);
+    scene.add(leaves);
+  }
+}
+
+// Floating rocks
+for (let r = 0; r < 20; r++) {
+  const rock = new THREE.Mesh(
+    new THREE.DodecahedronGeometry(1 + Math.random() * 2, 0),
+    stoneMat
+  );
+  rock.position.set(
+    (Math.random() - 0.5) * 80,
+    -10 + Math.random() * 30,
+    (Math.random() - 0.5) * 80
+  );
+  rock.rotation.set(Math.random(), Math.random(), Math.random());
+  rock.userData.rockPhase = Math.random() * Math.PI * 2;
+  rock.userData.isRock = true;
+  scene.add(rock);
+}
+
+// Cloud layers
+for (let c = 0; c < 15; c++) {
+  const cloudGroup = new THREE.Group();
+  
+  for (let p = 0; p < 5; p++) {
+    const puff = new THREE.Mesh(
+      new THREE.SphereGeometry(2 + Math.random() * 3, 10, 10),
+      cloudMat
+    );
+    puff.position.set(
+      (Math.random() - 0.5) * 8,
+      (Math.random() - 0.5) * 2,
+      (Math.random() - 0.5) * 4
+    );
+    cloudGroup.add(puff);
+  }
+  
+  cloudGroup.position.set(
+    (Math.random() - 0.5) * 120,
+    -15 + Math.random() * 10,
+    (Math.random() - 0.5) * 120
+  );
+  cloudGroup.userData.cloudPhase = Math.random() * Math.PI * 2;
+  cloudGroup.userData.isCloud = true;
+  scene.add(cloudGroup);
+}
+
+// Birds flying between islands
+const birdCount = 50;
+const birdPos = new Float32Array(birdCount * 3);
+for (let i = 0; i < birdCount; i++) {
+  birdPos[i*3] = (Math.random() - 0.5) * 80;
+  birdPos[i*3+1] = 5 + Math.random() * 25;
+  birdPos[i*3+2] = (Math.random() - 0.5) * 80;
+}
+const birdGeo = new THREE.BufferGeometry();
+birdGeo.setAttribute('position', new THREE.BufferAttribute(birdPos, 3));
+const birdMat = new THREE.ShaderMaterial({
+  uniforms: { uTime: { value: 0 } },
+  vertexShader: `
+    uniform float uTime;
+    void main() {
+      vec3 p = position;
+      p.x += sin(uTime * 0.3 + position.z * 0.05) * 3.0;
+      p.y += cos(uTime * 0.25 + position.x * 0.05) * 1.0;
+      gl_PointSize = 12.0;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+    }
+  `,
+  fragmentShader: `
+    void main() {
+      float d = length(gl_PointCoord - 0.5);
+      if (d > 0.5) discard;
+      float a = (1.0 - d * 2.0) * 0.7;
+      vec3 col = vec3(0.15, 0.12, 0.1);
+      gl_FragColor = vec4(col, a);
+    }
+  `,
+  transparent: true, depthWrite: false
+});
+const birds = new THREE.Points(birdGeo, birdMat);
+birds.userData.isBirds = true;
+scene.add(birds);
+
+// Stars above
+const starCount = 1500;
+const starPos = new Float32Array(starCount * 3);
+for (let i = 0; i < starCount; i++) {
+  const theta = Math.random() * Math.PI * 2;
+  const r = 200 + Math.random() * 100;
+  starPos[i*3] = Math.cos(theta) * r;
+  starPos[i*3+1] = 50 + Math.random() * 100;
+  starPos[i*3+2] = Math.sin(theta) * r;
+}
+const starGeo = new THREE.BufferGeometry();
+starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.5 })));
+
+// Rainbow
+const rainbowGeo = new THREE.BufferGeometry();
+const rainbowPositions = [];
+for (let r = 0; r < 200; r++) {
+  const angle = (r / 200) * Math.PI;
+  const radius = 40 + (r / 200) * 15;
+  rainbowPositions.push(Math.cos(angle) * radius, 20 + Math.sin(angle) * radius * 0.5, -60);
+}
+rainbowGeo.setAttribute('position', new THREE.Float32BufferAttribute(rainbowPositions, 3));
+const rainbowColors = [0xff0000, 0xff8800, 0xffff00, 0x00ff00, 0x0088ff, 0x4400ff, 0x8800ff];
+for (let i = 0; i < 7; i++) {
+  const arc = new THREE.Line(
+    new THREE.BufferGeometry(),
+    new THREE.LineBasicMaterial({ color: rainbowColors[i], transparent: true, opacity: 0.4 })
+  );
+  const pts = [];
+  for (let j = 0; j < 200; j++) {
+    const a = (j / 200) * Math.PI;
+    const radius = 40 + i * 2 + (j / 200) * 2;
+    pts.push(new THREE.Vector3(Math.cos(a) * radius, 20 + Math.sin(a) * radius * 0.5, -60));
+  }
+  arc.geometry.setFromPoints(pts);
+  scene.add(arc);
+}
+
+// Mysterious floating crystals
+const crystalColors = [0x88ccff, 0xaa88ff, 0xff88cc, 0x88ffcc];
+for (let c = 0; c < 12; c++) {
+  const cx = (Math.random() - 0.5) * 60;
+  const cy = -5 + Math.random() * 20;
+  const cz = (Math.random() - 0.5) * 60;
+  const color = crystalColors[Math.floor(Math.random() * 4)];
+  
+  const crystal = new THREE.Mesh(
+    new THREE.OctahedronGeometry(0.8 + Math.random() * 1.2, 0),
+    new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 2.0, transparent: true, opacity: 0.8 })
+  );
+  crystal.position.set(cx, cy, cz);
+  crystal.userData.crystalPhase = Math.random() * Math.PI * 2;
+  crystal.userData.isCrystal = true;
+  scene.add(crystal);
+  
+  const cLight = new THREE.PointLight(color, 2, 10);
+  cLight.position.set(cx, cy, cz);
+  scene.add(cLight);
+}
+
+// Ancient temple on top of main island
+const templeBase = new THREE.Mesh(
+  new THREE.BoxGeometry(8, 2, 6),
+  stoneMat
+);
+templeBase.position.set(-3, 5, 0);
+scene.add(templeBase);
+
+const templePillars = new THREE.Group();
+for (let p = 0; p < 4; p++) {
+  const pillar = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.4, 0.5, 5, 10),
+    stoneMat
+  );
+  pillar.position.set(-6 + p * 2, 3.5, -2);
+  templePillars.add(pillar);
+}
+scene.add(templePillars);
+
+const templeRoof = new THREE.Mesh(
+  new THREE.ConeGeometry(6, 3, 4),
+  new THREE.MeshStandardMaterial({ color: 0x3a3530 })
+);
+templeRoof.position.set(-3, 8, 0);
+templeRoof.rotation.y = Math.PI / 4;
+scene.add(templeRoof);
+
+const templeStatue = new THREE.Mesh(
+  new THREE.ConeGeometry(0.8, 2.5, 6),
+  new THREE.MeshStandardMaterial({ color: 0xffcc22, emissive: 0xffaa00, emissiveIntensity: 1.5 })
+);
+templeStatue.position.set(-3, 8.5, 0);
+scene.add(templeStatue);
+
+const clock = new THREE.Clock();
+function animate() {
+  requestAnimationFrame(animate);
+  const t = clock.getElapsedTime();
+  
+  if (birds.userData.isBirds) birds.material.uniforms.uTime.value = t;
+  
+  scene.children.forEach(child => {
+    if (child.userData.isIsland) {
+      child.position.y = child.userData.baseY + Math.sin(t * 0.2 + child.userData.floatPhase) * 1.5;
+    }
+    if (child.userData.isRock) {
+      child.position.y += Math.sin(t * 0.15 + child.userData.rockPhase) * 0.008;
+      child.rotation.y = t * 0.1 + child.userData.rockPhase;
+    }
+    if (child.userData.isCloud) {
+      child.position.x += Math.sin(t * 0.05 + child.userData.cloudPhase) * 0.02;
+      child.position.z += Math.cos(t * 0.04 + child.userData.cloudPhase) * 0.015;
+    }
+    if (child.userData.isCrystal) {
+      child.rotation.y = t * 0.3 + child.userData.crystalPhase;
+      child.position.y += Math.sin(t * 0.5 + child.userData.crystalPhase) * 0.01;
+    }
+  });
+  
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+
+window.addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+setTimeout(() => { document.getElementById('hint').style.opacity = '0'; }, 5000);
+</script>
+</body>
+</html>
